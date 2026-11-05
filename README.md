@@ -37,6 +37,6 @@ npx serve .
 
 ## Ghi chú
 
-- Nhạc được tạo trực tiếp bằng WebAudio (không dùng file âm thanh nào); bắt đầu phát khi người xem chạm mở thư. Nút ♪ ở góc dưới để tắt/bật.
+- Nhạc được tạo trực tiếp bằng WebAudio (không dùng file âm thanh nào): giai điệu hộp nhạc "Happy Birthday" xen đoạn đệm nhẹ, **lặp liên tục** từ lúc người xem chạm mở thư cho đến hết (không có nút tắt). Trình duyệt chỉ cho phát nhạc sau một lần chạm, nên nhạc bắt đầu ở cú chạm mở phong thư.
 - Tôn trọng `prefers-reduced-motion`: giảm hiệu ứng nếu máy bật chế độ này.
 - Cần mạng để tải font từ Google Fonts; không có mạng vẫn xem được với font dự phòng.

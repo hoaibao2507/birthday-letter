@@ -261,38 +261,82 @@ const FX = (() => {
    Âm thanh: hộp nhạc "Happy Birthday" tổng hợp bằng WebAudio
    ===================================================================== */
 const Snd = (() => {
-  let ctx = null, master = null, wet = null, on = true;
+  let ctx = null, master = null, wet = null, looping = false;
   const N = { G4: 392, A4: 440, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99 };
+  const BEAT = .47;
+  // Giai điệu "Happy Birthday": [tần số, số phách]
   const SONG = [
     [N.G4, .75], [N.G4, .25], [N.A4, 1], [N.G4, 1], [N.C5, 1], [N.B4, 2],
     [N.G4, .75], [N.G4, .25], [N.A4, 1], [N.G4, 1], [N.D5, 1], [N.C5, 2],
     [N.G4, .75], [N.G4, .25], [N.G5, 1], [N.E5, 1], [N.C5, 1], [N.B4, 1], [N.A4, 2],
     [N.F5, .75], [N.F5, .25], [N.E5, 1], [N.C5, 1], [N.D5, 1], [N.C5, 2.5],
   ];
+  // Đoạn đệm hòa âm nhẹ: C – Am – F – G, rải theo kiểu hộp nhạc
+  const CHORDS = [
+    { bass: 130.81, arp: [261.63, 329.63, 392, 523.25] },
+    { bass: 110, arp: [220, 261.63, 329.63, 440] },
+    { bass: 87.31, arp: [174.61, 261.63, 349.23, 440] },
+    { bass: 98, arp: [196, 246.94, 293.66, 392] },
+  ];
+  const PATTERN = [0, 1, 2, 3, 2, 1, 2, 1];
+
+  // Mỗi đoạn là danh sách sự kiện {f, at (phách), dur (giây), v (âm lượng)} và độ dài (phách)
+  function songSegment(octave = 1, vol = .17) {
+    const ev = []; let t = 0;
+    for (const [f, d] of SONG) { ev.push({ f: f * octave, at: t, dur: 1.5, v: vol }); t += d; }
+    return { ev, len: t + 1 };
+  }
+  function songWithBass() {
+    const seg = songSegment(1, .17);
+    for (let b = 0; b < seg.len - 1; b += 3) seg.ev.push({ f: b % 6 === 0 ? 130.81 : 98, at: b, dur: 1.8, v: .07 });
+    return seg;
+  }
+  function interludeSegment() {
+    const ev = []; let t = 0;
+    for (const c of CHORDS) {
+      ev.push({ f: c.bass, at: t, dur: 3, v: .09 });
+      PATTERN.forEach((p, i) => ev.push({ f: c.arp[p], at: t + i * .5, dur: 1.3, v: .08 }));
+      t += 4;
+    }
+    return { ev, len: t };
+  }
+  const PLAYLIST = [songWithBass, interludeSegment, () => songSegment(2, .1), interludeSegment];
+
   function init() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    ctx = new AC(); master = ctx.createGain(); master.gain.value = on ? .7 : 0;
+    ctx = new AC(); master = ctx.createGain(); master.gain.value = .7;
     const conv = ctx.createConvolver(), len = ctx.sampleRate * 1.8, buf = ctx.createBuffer(2, len, ctx.sampleRate);
     for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
     conv.buffer = buf; wet = ctx.createGain(); wet.gain.value = .35;
     master.connect(ctx.destination); master.connect(conv); conv.connect(wet); wet.connect(ctx.destination);
   }
-  function note(f, t, dur = 1.3, vol = .2, type = 'sine') {
+  function note(f, t, dur = 1.3, vol = .2) {
     if (!ctx) return;
     const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .006); g.gain.exponentialRampToValueAtTime(.0008, t + dur);
     g.connect(master);
-    for (const [m, v, ty] of [[1, 1, type], [2, .28, 'sine'], [4, .08, 'sine']]) {
-      const o = ctx.createOscillator(), og = ctx.createGain(); o.type = ty; o.frequency.value = f * m; og.gain.value = v;
+    for (const [m, v] of [[1, 1], [2, .28], [4, .08]]) {
+      const o = ctx.createOscillator(), og = ctx.createGain(); o.type = 'sine'; o.frequency.value = f * m; og.gain.value = v;
       o.connect(og); og.connect(g); o.start(t); o.stop(t + dur + .05);
     }
   }
-  function song(vol = .2) {
-    if (!ctx) return 0;
-    const beat = .47; let t = ctx.currentTime + .05;
-    for (const [f, d] of SONG) { note(f, t, 1.4, vol); t += d * beat; }
-    return (t - ctx.currentTime) * 1000;
+  // Nhạc nền chạy vòng lặp mãi mãi: lên lịch trước vài giây, liên tục nối đoạn tiếp theo
+  function start() {
+    init();
+    if (!ctx || looping) return;
+    looping = true;
+    let idx = 0, segStart = ctx.currentTime + .1, queue = [];
+    const pump = () => {
+      if (!ctx) return;
+      while (segStart < ctx.currentTime + 3) {
+        const seg = PLAYLIST[idx++ % PLAYLIST.length]();
+        for (const e of seg.ev) note(e.f, segStart + e.at * BEAT, e.dur, e.v);
+        segStart += seg.len * BEAT;
+      }
+      setTimeout(pump, 700);
+    };
+    pump();
   }
   function chime() {
     if (!ctx) return; const t = ctx.currentTime;
@@ -312,11 +356,9 @@ const Snd = (() => {
   }
   const puff = () => noise(.5, 700, .35);
   const boom = () => { noise(.7, 160, .5); setTimeout(() => noise(.35, 5200, .06, 'highpass'), 120); };
-  function toggle() {
-    on = !on; if (master) master.gain.setTargetAtTime(on ? .7 : 0, ctx.currentTime, .05); return on;
-  }
-  document.addEventListener('visibilitychange', () => { if (!ctx) return; if (document.hidden) ctx.suspend(); else if (on) ctx.resume(); });
-  return { init, song, chime, pop, puff, boom, toggle, get on() { return on; } };
+  // Tab bị ẩn thì tạm dừng, quay lại thì chạy tiếp (nhạc luôn bật)
+  document.addEventListener('visibilitychange', () => { if (!ctx) return; if (document.hidden) ctx.suspend(); else ctx.resume(); });
+  return { init, start, chime, pop, puff, boom };
 })();
 
 /* =====================================================================
@@ -391,7 +433,7 @@ ${candles.map((x, i) => `<g transform="translate(${x} 54)">
 const steps = CFG.pages;
 const el = {
   intro: $('#intro'), env: $('#env'), envLetter: $('#envLetter'), seal: $('#seal'), paper: $('#paper'),
-  pages: $('#pages'), next: $('#next'), dots: $('#dots'), finale: $('#finale'), sound: $('#sound'),
+  pages: $('#pages'), next: $('#next'), dots: $('#dots'), finale: $('#finale'),
 };
 $('#envTo').textContent = `Gửi ${TO}`;
 $('#pmDate').textContent = CFG.date;
@@ -517,7 +559,7 @@ function bindCake(pg, step) {
 async function openLetter() {
   if (opened) return; opened = true;
   Snd.init(); Snd.pop();
-  el.sound.hidden = false; Snd.song(.2);
+  Snd.start();
   const sr = el.seal.getBoundingClientRect();
   FX.hearts(sr.left + sr.width / 2, sr.top + sr.height / 2, 14);
   FX.stars(6, { x: sr.left - 40, y: sr.top - 40, w: sr.width + 80, h: sr.height + 80 });
@@ -556,7 +598,6 @@ async function finale(step) {
   $('#fSign').textContent = sub(step.sign || '');
   el.finale.hidden = false;
   FX.startCloud(); balloons(6);
-  Snd.song(.22);
   await sleep(1400);
   el.finale.classList.add('show');
   FX.fireworks(5, 600); FX.confettiRain(2600);
@@ -579,7 +620,6 @@ el.env.addEventListener('click', openLetter);
 el.env.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLetter(); } });
 el.next.addEventListener('click', () => { Snd.init(); enter(cur + 1); });
 $('#again').addEventListener('click', () => location.reload());
-el.sound.addEventListener('click', () => { Snd.init(); el.sound.classList.toggle('muted', !Snd.toggle()); });
 addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' && el.next.classList.contains('show')) el.next.click(); });
 
 // chạm vào giấy khi chữ đang hiện → hiện nhanh toàn bộ

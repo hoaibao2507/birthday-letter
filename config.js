@@ -69,7 +69,7 @@ window.LETTER = {
       type: 'finale',
       big: 'Anh yêu em',
       lines: ['Chúc mừng sinh nhật, {to}!'],
-      sign: 'Mãi yêu em, {from}',
+      sign: 'Mãi yêu bbi húiiii',
     },
   ],
 };
