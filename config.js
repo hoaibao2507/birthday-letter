@@ -45,18 +45,6 @@ window.LETTER = {
       effect: 'hearts',
     },
     {
-      type: 'list',
-      title: 'Vì sao anh yêu em',
-      lines: [
-        'Nụ cười của em làm anh quên hết *mệt mỏi*',
-        'Em luôn lắng nghe, kể cả khi anh nói linh tinh',
-        'Cách em quan tâm những điều *rất nhỏ*',
-        'Em là chính em — và anh thích điều đó',
-        'Chỉ cần có em, chỗ nào cũng là *nhà*',
-      ],
-      effect: 'stars',
-    },
-    {
       type: 'text',
       title: 'Điều anh ước',
       lines: [
