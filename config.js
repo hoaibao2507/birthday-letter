@@ -36,6 +36,36 @@ window.LETTER = {
     },
     {
       type: 'text',
+      title: 'Anh có chuyện này muốn nói…',
+      lines: [
+        'Ừm… em ơi.',
+        'Anh có chuyện này muốn nói, nhưng mà… anh hơi ngại.',
+        'Em còn nhớ cái tối hôm đó không? Sau bữa đi ăn, anh chở em về…',
+        'Cả đoạn đường, anh cứ im im. Trong đầu thì *chạy loạn hết cả lên*.\nAnh nghĩ, nghĩ nữa, rồi lại… thôi, để lát nữa.',
+      ],
+    },
+    {
+      type: 'text',
+      title: 'Cái tối hôm đó',
+      lines: [
+        'Rồi anh nói. Mà còn nói không đàng hoàng nữa:',
+        { t: '"Bà làm bạn gái tui nha." 🙈', cls: 'quote shy', fx: 'shy' },
+        'Giờ nghĩ lại, anh vẫn thấy mình *ngố* kinh khủng.',
+        'Mà em lại *đồng ý* ♥',
+      ],
+      effect: 'stars',
+    },
+    {
+      type: 'text',
+      title: 'Anh muốn nói lại',
+      lines: [
+        'Mình yêu nhau lâu rồi, mà thỉnh thoảng anh vẫn thấy tim đập nhanh như tối hôm đó.',
+        'Nên lần này, anh nói lại cho đàng hoàng nhé.\nKhông "bà", không "tui" nữa…',
+        { t: '"Anh yêu em, nhiều lắm." ♥', cls: 'quote big', fx: 'blush' },
+      ],
+    },
+    {
+      type: 'text',
       title: 'Cảm ơn em',
       lines: [
         'Cảm ơn em vì đã xuất hiện trong cuộc sống của anh.',

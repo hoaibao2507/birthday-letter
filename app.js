@@ -354,11 +354,20 @@ const Snd = (() => {
     const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
     s.buffer = b; f.type = type; f.frequency.value = freq; g.gain.value = vol; s.connect(f); f.connect(g); g.connect(master); s.start(t);
   }
+  function heartbeat() {
+    if (!ctx) return; const t = ctx.currentTime;
+    for (const [dt, v] of [[0, .6], [.19, .42]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine';
+      o.frequency.setValueAtTime(120, t + dt); o.frequency.exponentialRampToValueAtTime(48, t + dt + .16);
+      g.gain.setValueAtTime(0, t + dt); g.gain.linearRampToValueAtTime(v, t + dt + .012); g.gain.exponentialRampToValueAtTime(.001, t + dt + .22);
+      o.connect(g); g.connect(master); o.start(t + dt); o.stop(t + dt + .25);
+    }
+  }
   const puff = () => noise(.5, 700, .35);
   const boom = () => { noise(.7, 160, .5); setTimeout(() => noise(.35, 5200, .06, 'highpass'), 120); };
   // Tab bị ẩn thì tạm dừng, quay lại thì chạy tiếp (nhạc luôn bật)
   document.addEventListener('visibilitychange', () => { if (!ctx) return; if (document.hidden) ctx.suspend(); else ctx.resume(); });
-  return { init, start, chime, pop, puff, boom };
+  return { init, start, chime, pop, puff, boom, heartbeat };
 })();
 
 /* =====================================================================
@@ -385,16 +394,21 @@ function balloons(n = 8) {
    Dựng nội dung các trang
    ===================================================================== */
 function lineHTML(text) {
-  const s = esc(sub(text)); let wi = 0;
+  let wi = 0;
   const wordify = (seg) => seg.split(/(\s+)/).map((t) => {
     if (t === '' || /^\s+$/.test(t)) return t;
     const cls = t.includes('♥') ? 'w hrt' : 'w';
     return `<span class="${cls}" style="--w:${wi++}">${t}</span>`;
   }).join('');
-  const html = s.split(/(\*[^*]+\*)/).map((seg) => (seg.length > 2 && seg.startsWith('*') && seg.endsWith('*')) ? `<mark>${wordify(seg.slice(1, -1))}</mark>` : wordify(seg)).join('');
+  const html = esc(sub(text)).split('\n').map((part) => part.split(/(\*[^*]+\*)/).map((seg) => (seg.length > 2 && seg.startsWith('*') && seg.endsWith('*')) ? `<mark>${wordify(seg.slice(1, -1))}</mark>` : wordify(seg)).join('')).join('<br>');
   return { html, n: wi };
 }
-const mkLine = (t, cls = 'rv') => { const { html, n } = lineHTML(t); return `<p class="ln ${cls}" data-n="${n}">${html}</p>`; };
+const mkLine = (t, cls = 'rv') => {
+  const o = typeof t === 'object' ? t : { t };
+  const { html, n } = lineHTML(o.t);
+  const beat = /…/.test(o.t) ? ' data-beat="1"' : '', fx = o.fx ? ` data-fx="${o.fx}"` : '';
+  return `<p class="ln ${cls} ${o.cls || ''}" data-n="${n}"${beat}${fx}>${html}</p>`;
+};
 const mkRow = (t) => { const { html, n } = lineHTML(t); return `<p class="ln rs rv" data-n="${n}"><span class="txt">${html}</span></p>`; };
 
 function bigHTML() {
@@ -466,7 +480,11 @@ function onShown(item) {
   const r = item.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
   if (item.classList.contains('rs')) { FX.stars(2, { x: r.left, y: r.top - 6, w: 30, h: r.height }); FX.hearts(r.left + 8, r.top + r.height / 2, 2, ['#ff5c7a']); }
   if (item.classList.contains('big')) FX.stars(5, { x: r.left, y: r.top, w: r.width, h: r.height });
+  if (item.dataset.beat) { Snd.heartbeat(); thump(); FX.hearts(r.left + Math.min(r.width * .5, 90), r.top + 4, 1, ['#ff5c7a']); }
+  if (item.dataset.fx === 'shy') { el.paper.classList.add('flush'); FX.hearts(x, y, 6); FX.stars(4, { x: r.left, y: r.top - 10, w: r.width, h: r.height }); }
+  if (item.dataset.fx === 'blush') { el.paper.classList.add('flush', 'flush2'); FX.hearts(x, y, 10); FX.heartRain(2800); FX.stars(8); Snd.chime(); }
 }
+function thump() { el.paper.classList.remove('thump'); void el.paper.offsetWidth; el.paper.classList.add('thump'); }
 
 async function reveal(root, sel) {
   const my = ++token;
@@ -474,13 +492,13 @@ async function reveal(root, sel) {
   for (const it of items) {
     if (my !== token) return false;
     it.classList.add('on'); onShown(it);
-    await sleep((+it.dataset.n || 3) * 68 + (it.classList.contains('big') ? 900 : 420));
+    await sleep((+it.dataset.n || 3) * 68 + (it.classList.contains('big') ? 900 : 420) + (it.dataset.beat ? 650 : 0) + (it.dataset.fx ? 700 : 0));
   }
   return my === token;
 }
 function skipReveal(root, sel, cls = 'skip') {
   token++; root.classList.add(cls);
-  root.querySelectorAll(sel).forEach((i) => i.classList.add('on'));
+  root.querySelectorAll(sel).forEach((i) => { i.classList.add('on'); if (i.dataset.fx) el.paper.classList.add('flush'); });
 }
 
 function runEffect(name) {
@@ -508,7 +526,7 @@ async function enter(i) {
   cur = i; const step = steps[i];
   if (step.type === 'finale') { busy = false; return finale(step); }
   el.next.classList.remove('show'); el.next.innerHTML = nextLabel(i);
-  setDots(i);
+  setDots(i); el.paper.classList.remove('flush', 'flush2');
   const old = el.pages.querySelector('.pg.active');
   const pg = buildPage(step); el.pages.appendChild(pg);
   if (old) { old.classList.add('out'); old.classList.remove('active'); setTimeout(() => old.remove(), 600); }
